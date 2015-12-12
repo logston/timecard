@@ -113,7 +113,7 @@ def main():
     parser.add_argument('comment', nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
-    timecard_file = os.environ.get('TIMECARD_FILE')
+    timecard_file = '~/.timecard/timecard.txt'
     if not timecard_file:
         sys.stderr.write('No timecard file found.\n')
         sys.exit(1)

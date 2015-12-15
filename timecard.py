@@ -40,7 +40,7 @@ def print_work_today(lines):
     now = datetime.utcnow()
     day_start = now.replace(hour=8, minute=0, second=0, microsecond=0)
     if now.hour < 8:
-        day_start -= timedelta(day=1)
+        day_start -= timedelta(days=1)
     seconds, _ = count_time(lines, after=day_start)
     print('Work today (since {} UTC): {:.3} hours'
           ''.format(day_start, seconds / 3600))

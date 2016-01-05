@@ -33,6 +33,11 @@ def count_time(lines, before=None, after=None):
         elif working and comments.startswith('out'):
             running_total += (dt - last_in_dt).total_seconds()
             working = False
+
+    if working:
+        now = datetime.utcnow()
+        running_total += (now - last_in_dt).total_seconds()
+
     return running_total, working
 
 
@@ -69,7 +74,6 @@ def check_in(timecard_file, comment):
     dt_string = '{}'.format(datetime.utcnow().strftime(DATETIME_FORMAT))
     with open(timecard_file, 'a') as fp:
         fp.write(dt_string + ' - in ' + comment + '\n')
-    sys.stdout.write('CHECKED IN: {}\n'.format(comment))
 
 
 def check_out(timecard_file, comment):
@@ -77,7 +81,6 @@ def check_out(timecard_file, comment):
     dt_string = '{}'.format(datetime.utcnow().strftime(DATETIME_FORMAT))
     with open(timecard_file, 'a') as fp:
         fp.write(dt_string + ' - out ' + comment + '\n')
-    sys.stdout.write('CHECKED OUT: {}\n'.format(comment))
 
 
 def is_checked_in(lines):
@@ -99,12 +102,12 @@ def switch(timecard_file, args):
                              ''.format(args.cmd.upper()))
             sys.exit(1)
 
-    elif args.cmd == 'st':
-        print_status(lines)
-
-    else:
+    elif args.cmd != 'st':
         sys.stderr.write('Invalid command: {}\n')
         sys.exit(1)
+
+    lines = get_timecard_lines(timecard_file)
+    print_status(lines)
 
 
 def main():

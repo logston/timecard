@@ -27,6 +27,7 @@ def count_time(lines, before=None, after=None):
     for dt, comments in lines:
         if (after and dt < after) or (before and dt > before):
             continue
+
         if not working and comments.startswith('in'):
             working = True
             last_in_dt = dt
@@ -34,7 +35,7 @@ def count_time(lines, before=None, after=None):
             running_total += (dt - last_in_dt).total_seconds()
             working = False
 
-    if working:
+    if not before and working:
         now = datetime.utcnow()
         running_total += (now - last_in_dt).total_seconds()
 
@@ -49,6 +50,17 @@ def print_work_today(lines):
     seconds, _ = count_time(lines, after=day_start)
     print('Work today (since {} UTC): {:.3} hours'
           ''.format(day_start, seconds / 3600))
+
+
+def print_work_last_week(lines):
+    # get most recent Monday morning
+    now = datetime.utcnow()
+    monday = now - timedelta(days=now.weekday())
+    monday = monday.replace(hour=8, minute=0, second=0, microsecond=0)
+    last_week_monday = monday - timedelta(days=7)
+    seconds, _ = count_time(lines, after=last_week_monday, before=monday)
+    print('Work last week ({} - {} UTC): {:.3} hours'
+          ''.format(last_week_monday, monday, seconds / 3600))
 
 
 def print_work_this_week(lines):
@@ -67,6 +79,13 @@ def print_status(lines):
     print('Currently CHECKED {}'.format('IN' if is_in else 'OUT'))
     print_work_today(lines)
     print_work_this_week(lines)
+
+
+def print_status_for_last_week(lines):
+    print('NOW {} (UTC)'.format(datetime.utcnow()))
+    is_in = is_checked_in(lines)
+    print('Currently CHECKED {}'.format('IN' if is_in else 'OUT'))
+    print_work_last_week(lines)
 
 
 def check_in(timecard_file, comment):
@@ -102,12 +121,17 @@ def switch(timecard_file, args):
                              ''.format(args.cmd.upper()))
             sys.exit(1)
 
-    elif args.cmd != 'st':
-        sys.stderr.write('Invalid command: {}\n')
-        sys.exit(1)
+        print_status(lines)
 
-    lines = get_timecard_lines(timecard_file)
-    print_status(lines)
+    elif args.cmd == 'lw':
+        print_status_for_last_week(lines)
+
+    elif args.cmd == 'st':
+        print_status(lines)
+
+    else:
+        sys.stderr.write('Invalid command: {}\n'.format(args.cmd))
+        sys.exit(1)
 
 
 def main():

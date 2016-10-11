@@ -123,7 +123,7 @@ class TimeCardManager(object):
         monday = monday.replace(hour=8, minute=0, second=0, microsecond=0)
         seconds = self.count_time(monday)
 
-        msg = 'Work in past week (since {} UTC): {:.3} hours'
+        msg = 'Work this week (since {} UTC): {:.3} hours'
         msg = msg.format(monday, seconds / 3600.0)
         print(msg)
 
@@ -143,14 +143,19 @@ class TimeCardManager(object):
                     continue
 
             if not checked_in and row_op == self.OP_IN:
-                working = True
+                checked_in = True
                 last_in_dt = row_value
 
             elif checked_in and row_op == self.OP_OUT:
                 running_total += (row_value - last_in_dt).total_seconds()
-                working = False
+                checked_in = False
 
-            elif not checked_in and row_op in self.ADD_SUB_OPS:
+            elif (not checked_in and 
+                  row_op in self.ADD_SUB_OPS and
+                  # use the last_in_dt to determine if ADD / SUB op should be
+                  # counted for this interval
+                  (start_ts and last_in_dt > start_ts) and
+                  (end_ts and last_in_dt < end_ts)):
                 if row_op == self.OP_ADD:
                     running_total += row_value.total_seconds()
                 else:

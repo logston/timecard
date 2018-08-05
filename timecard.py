@@ -35,14 +35,15 @@ class TimeCardManager(object):
         # validate value
         self.validate_value(op, value)
 
+        timestamp = datetime.utcnow().strftime(self.DATETIME_FORMAT)
+
         # add op + save file if necessary
         if op in self.IN_OUT_OPS:
-            value = datetime.utcnow().strftime(self.DATETIME_FORMAT)
-            self.save_op(op, value)
+            self.save_op(op, timestamp, None)
             self.last_in_out_op = op
 
         elif op in self.ADD_SUB_OPS:
-            self.save_op(op, value)
+            self.save_op(op, timestamp, value)
 
         # print status
         self.print_status()
@@ -56,7 +57,7 @@ class TimeCardManager(object):
         if op not in self.VALID_OPS:
             raise ValueError('Invalid op code: {}'.format(op))
 
-        for row_op, row_value in reversed(self.op_rows):
+        for row_op, row_ts, row_value in reversed(self.op_rows):
             if row_op in self.IN_OUT_OPS:
                 self.last_in_out_op = row_op
                 break
@@ -71,9 +72,6 @@ class TimeCardManager(object):
             msg = 'Can not check {0}. You are already checked {0}'
             raise ValueError(msg.format(op))
 
-        if self.last_in_out_op == self.OP_IN and op in self.ADD_SUB_OPS:
-            raise ValueError('Can not add/sub time while checked in.')
-
     def validate_value(self, op, value):
         if op in self.ADD_SUB_OPS:
             try:
@@ -82,8 +80,8 @@ class TimeCardManager(object):
                 msg = 'Can not {} {} to given time card'
                 raise ValueError(msg.format(op, value))
 
-    def save_op(self, op, value):
-        row = (op, value)
+    def save_op(self, op, timestamp, value):
+        row = (op, timestamp, value)
         with open(self.data_file, 'a') as fp:
             writer = csv.writer(fp)
             writer.writerow(row)
@@ -97,8 +95,8 @@ class TimeCardManager(object):
         self.print_work_last_week()
 
     def print_work_today(self):
-        day_start = self.now.replace(hour=8, minute=0, second=0, microsecond=0)
-        if self.now.hour < 8:
+        day_start = self.now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if self.now.hour < 0:
             day_start -= timedelta(days=1)
         seconds = self.count_time(day_start)
 
@@ -109,7 +107,7 @@ class TimeCardManager(object):
     def print_work_last_week(self):
         # get most recent Monday morning
         monday = self.now - timedelta(days=self.now.weekday())
-        monday = monday.replace(hour=8, minute=0, second=0, microsecond=0)
+        monday = monday.replace(hour=0, minute=0, second=0, microsecond=0)
         last_week_monday = monday - timedelta(days=7)
         seconds = self.count_time(last_week_monday, monday)
 
@@ -120,7 +118,7 @@ class TimeCardManager(object):
     def print_work_this_week(self):
         # get most recent Monday morning
         monday = self.now - timedelta(days=self.now.weekday())
-        monday = monday.replace(hour=8, minute=0, second=0, microsecond=0)
+        monday = monday.replace(hour=0, minute=0, second=0, microsecond=0)
         seconds = self.count_time(monday)
 
         msg = 'Work this week (since {} UTC): {:.3} hours'
@@ -132,30 +130,27 @@ class TimeCardManager(object):
         last_in_dt = datetime(2015, 1, 1)  # arbitrary dt
         checked_in = False
 
-        for row_op, row_value in self.op_rows:
-            if row_op in self.IN_OUT_OPS:
-                row_value = datetime.strptime(row_value, self.DATETIME_FORMAT)
-            elif row_op in self.ADD_SUB_OPS:
+        for row_op, row_ts, row_value in self.op_rows:
+            row_ts = datetime.strptime(row_ts, self.DATETIME_FORMAT)
+            if row_op in self.ADD_SUB_OPS:
                 row_value = timedelta(minutes=int(row_value))
 
             if row_op in self.IN_OUT_OPS:
-                if (start_ts and row_value < start_ts) or (end_ts and row_value > end_ts):
+                if (start_ts and row_ts < start_ts) or (end_ts and row_ts > end_ts):
                     continue
 
             if not checked_in and row_op == self.OP_IN:
                 checked_in = True
-                last_in_dt = row_value
+                last_in_dt = row_ts
 
             elif checked_in and row_op == self.OP_OUT:
-                running_total += (row_value - last_in_dt).total_seconds()
+                running_total += (row_ts - last_in_dt).total_seconds()
                 checked_in = False
 
-            elif (not checked_in and 
-                  row_op in self.ADD_SUB_OPS and
-                  # use the last_in_dt to determine if ADD / SUB op should be
-                  # counted for this interval
-                  (start_ts and last_in_dt > start_ts) and
-                  (end_ts and last_in_dt < end_ts)):
+            elif (row_op in self.ADD_SUB_OPS and
+                  (not start_ts or row_ts > start_ts) and
+                  (not end_ts or row_ts < end_ts)):
+
                 if row_op == self.OP_ADD:
                     running_total += row_value.total_seconds()
                 else:
